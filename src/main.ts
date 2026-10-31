@@ -466,19 +466,15 @@ $<HTMLSelectElement>('nearSelect').onchange = (e) => {
   replan(true);
 };
 
-// Local demo fallback: emulate a positioning service. Pick across the full train
-// formation so repeated runs can place the passenger beside any car, not just an end car.
-let lastSimulatedCar: number | undefined;
+// Local demo fallback: emulate a positioning service within a realistic walk of the
+// suggested boarding area. Alternating sides still exercises different train sections.
+let lastSimulatedSide = 1;
 $('simulateLocationBtn').onclick = () => {
   if (!state.origin) return;
-  const cars = state.line.train.cars;
-  let car = 1 + Math.floor(Math.random() * cars);
-  if (cars > 1 && car === lastSimulatedCar) car = (car % cars) + 1;
-  lastSimulatedCar = car;
-  const centre = carCentreX(state.origin.layout, state.line.train, state.dir, car);
-  const carLength = state.line.train.carLengthsM[car - 1];
-  const jitter = (Math.random() - 0.5) * carLength * 0.7;
-  state.userX = Math.max(0, Math.min(state.origin.layout.lengthM, centre + jitter));
+  lastSimulatedSide *= -1;
+  const target = state.rec?.targetX ?? state.origin.layout.lengthM / 2;
+  const walkM = 15 + Math.random() * 35;
+  state.userX = Math.max(3, Math.min(state.origin.layout.lengthM - 3, target + lastSimulatedSide * walkM));
   state.userSource = 'simulated';
   const landmark = state.origin.layout.landmarks
     .filter((l) => l.type !== 'platform-end')
