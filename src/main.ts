@@ -601,9 +601,18 @@ function walkEntry() {
   // People reach the platform by different stairs, lifts and passages: pick one at random.
   const stepFree = ['wheelchair', 'pram', 'luggage', 'mobility'].some((n) => state.needs.has(n as Need));
   const types = stepFree ? ['lift'] : ['exit', 'interchange', 'entrance', 'lift', 'escalator'];
-  const options = o.layout.landmarks.filter((l) => types.includes(l.type));
-  const pick = options[Math.floor(Math.random() * options.length)];
-  return pick ? { x: pick.xM, name: pick.name } : { x: o.layout.lengthM / 2, name: 'the platform entrance' };
+  // Keep the walk short and realistic: an entrance within 40 m of the spot, otherwise start
+  // 15-30 m away on the side of the nearest entrance.
+  const all = o.layout.landmarks.filter((l) => types.includes(l.type));
+  const t = state.rec!.targetX;
+  const near = all.filter((l) => Math.abs(l.xM - t) <= 40);
+  const pick = near[Math.floor(Math.random() * near.length)];
+  if (pick) return { x: pick.xM, name: pick.name };
+  const closest = [...all].sort((a, b) => Math.abs(a.xM - t) - Math.abs(b.xM - t))[0];
+  const side = closest ? Math.sign(closest.xM - t) || 1 : 1;
+  const x = Math.min(o.layout.lengthM - 3, Math.max(3, t + side * (15 + Math.random() * 15)));
+  const lm = o.layout.landmarks.filter((l) => l.type !== 'platform-end').sort((a, b) => Math.abs(a.xM - x) - Math.abs(b.xM - x))[0];
+  return { x, name: lm ? `platform by the ${lm.name}` : 'platform' };
 }
 
 function routeSummary(entry: { x: number; name: string }) {
