@@ -56,6 +56,21 @@ Built for Track 2: Multimodal & Human-Centric AI, with the Gemini model family.
 > Crowding, seats and noise are modelled estimates (time of day, station layout, typical boarding
 > patterns), not live sensor data. Station landmark positions are approximate.
 
+## Powered by the Gemini API
+
+TrainMate uses the Gemini API (via the official `@google/genai` SDK) for everything that involves
+understanding people and places:
+
+| What | How Gemini is used | Model |
+|---|---|---|
+| Understanding your trip | Your spoken (audio) or typed request is turned into stations, direction and access needs, as structured JSON | `gemini-3.8-flash` |
+| Knowing where you are | A photo or camera frame of the platform is matched against the station's signs, exits and benches | `gemini-3.8-flash` (vision) |
+| Mapping a platform | A handful of photos taken along a platform are turned into a landmark map that rebuilds the 3D scene | `gemini-3.8-flash` (multi-image) |
+| Talking you through it | The recommendation is rewritten as short, calm spoken directions, with step counts for blind passengers | `gemini-3.8-flash` |
+| A voice that sounds human | Directions are read out with expressive text-to-speech | `gemini-3.8-flash-tts` |
+
+You need your own Gemini API key to use these features (see below). Model names are set in `src/config.ts`.
+
 ## Run
 
 ```bash
@@ -84,26 +99,12 @@ Crowding is **modelled**, not measured: time of day, where people walk onto the 
 end cars, and per-train randomness. Station landmark positions in `src/data/network.ts` are
 **illustrative** and should be checked on site or rebuilt from photos.
 
-## 3-minute demo script
+## Walk to the train
 
-1. Press **🎤 Speak**: "I'm at Liverpool Street going to Bond Street with a pram."
-2. TrainMate answers out loud and the 3D view highlights the spot; the car bars show the crowding.
-3. **📷 Upload photo** of the platform → "You're by the roundel, walk 20 metres towards the front…" and the view drops to eye level.
-4. Turn on **High contrast**, ask as a blind user ("I'm blind, at Bond Street, heading to Liverpool Street") → directions with step counts.
-5. Drag **Simulated time** to 08:30 vs 14:00 to show crowding changing; press **Next train ⏭** to watch a train arrive.
-6. Optional: **🧱 Rebuild platform from photos** with 4–8 photos taken along a platform.
-
-Shortcut: **Ctrl+Space** toggles the microphone.
-
-## Walk-to-the-train demo
-
-Press **🚶 Walk to the train**. You start where you'd walk onto the platform (the lift for step-free
+Press **🚶 Walk to the train** to try it in first person. You start where you'd walk onto the platform (the lift for step-free
 needs, otherwise a street exit or interchange) and get turn-by-turn guidance with spoken cues as you
 pass landmarks. ↑/↓ walk, ←/→ turn, drag to look, Shift to hurry. At the green circle the next
 train is brought in, the doors open, and stepping forward boards the train; it then leaves with you on it.
-
-Handy URL parameters for rehearsing: `?line=metropolitan`, `?needs=pram`, `?view=walk`,
-`?autowalk=1` (follows the guidance hands-free), `?train=here` (a train already in the platform).
 
 ## Data and credits
 
