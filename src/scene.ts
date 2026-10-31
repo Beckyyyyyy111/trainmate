@@ -90,6 +90,7 @@ export class PlatformScene {
   private host: HTMLElement;
   private peopleTemplates: PersonTemplate[] = [];
   private peopleGroupTemplates: THREE.Object3D[] = [];
+  private peopleGroupWalkers: { group: THREE.Group; baseX: number; span: number; speed: number; phase: number }[] = [];
   private lodAt = 0;
   private userShown = false;
   // First-person walking on the platform. yaw 0 = facing the track (+z).
@@ -234,10 +235,20 @@ export class PlatformScene {
     if (old) this.station.remove(old);
     const families = new THREE.Group();
     families.name = 'real-families';
-    const positions = [0.2, 0.52, 0.82];
-    for (const [i, modelTemplate] of this.peopleGroupTemplates.entries()) {
-      const ratio = positions[i] ?? (i + 1) / (this.peopleGroupTemplates.length + 1);
-      const model = modelTemplate.clone(true);
+    this.peopleGroupWalkers = [];
+    // Split the CC0 assemblies into individual authored figures. This gives eleven
+    // genuinely different people before any controlled reuse is needed.
+    const figures: THREE.Object3D[] = [];
+    for (const template of this.peopleGroupTemplates) {
+      template.traverse((o) => {
+        if (/authored figure/i.test(o.name)) figures.push(o);
+      });
+    }
+    const count = 48;
+    for (let i = 0; i < count; i++) {
+      // A stride of five keeps copies of the same source far apart in the crowd.
+      const source = figures[(i * 5) % figures.length];
+      const model = source.clone(true);
       const bounds = new THREE.Box3().setFromObject(model);
       const centre = bounds.getCenter(new THREE.Vector3());
       model.position.set(-centre.x, -bounds.min.y, -centre.z);
@@ -249,11 +260,30 @@ export class PlatformScene {
       });
       const wrapper = new THREE.Group();
       wrapper.add(model);
-      wrapper.position.set(this.wx(this.layout.lengthM * ratio), 0, -1.8 - (i % 2) * 1.1);
-      wrapper.rotation.y = i % 2 ? Math.PI : 0;
+      const lane = i % 5;
+      const ratio = 0.035 + (((i * 17) % count) / (count - 1)) * 0.93;
+      const scale = 0.9 + ((i * 37) % 19) / 100;
+      wrapper.scale.set(scale * (0.96 + (i % 3) * 0.025), scale, scale);
+      wrapper.position.set(this.wx(this.layout.lengthM * ratio), 0, EDGE_Z - 1.15 - lane * 1.25);
+      wrapper.rotation.y = ((i * 71) % 360) * Math.PI / 180;
       families.add(wrapper);
+      if (i % 3 !== 0) {
+        this.peopleGroupWalkers.push({
+          group: wrapper,
+          baseX: wrapper.position.x,
+          span: Math.min(5 + (i % 7) * 2.5, Math.max(2, this.half - Math.abs(wrapper.position.x) - 2)),
+          speed: 0.28 + (i % 6) * 0.07,
+          phase: i * 1.73,
+        });
+      }
     }
     this.station.add(families);
+  }
+
+  private animatePeopleGroups(t: number) {
+    for (const p of this.peopleGroupWalkers) {
+      p.group.position.x = p.baseX + Math.sin(t * p.speed + p.phase) * p.span;
+    }
   }
 
   private buildTunnel(L: number, wallColor: string) {
@@ -1286,6 +1316,7 @@ export class PlatformScene {
       if (this.train.visible) this.trainPeople?.updateLod(this.camera.position, NEAR_PEOPLE);
     }
     this.platformPeople?.animate(t);
+    this.animatePeopleGroups(t);
     // Floating car labels are for the overview; on foot the platform displays do that job.
     for (const tag of this.carLabels) tag.visible = false;
     // Close up, the light column and label would only get in the way.
