@@ -179,7 +179,7 @@ export async function composeGuidance(facts: string, needs: Need[], language: st
     contents: [{ role: 'user', parts: [{ text: facts }] }],
     config: {
       temperature: 0.5,
-      systemInstruction: `You are PlatformPal, a calm, warm guide on the London Elizabeth line.
+      systemInstruction: `You are TrainMate, a calm, warm guide on the London Underground and Elizabeth line.
 Rewrite the facts into 2 to 4 short spoken sentences in language "${language}".
 Lead with the action (where to walk and wait). Mention landmarks, not car numbers, as the main cue.
 ${needs.includes('visual') ? 'The passenger is blind or has low vision: give step counts, mention tactile paving and the platform edge, never rely on colours or "over there".' : ''}

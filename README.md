@@ -1,6 +1,6 @@
-# PlatformPal — find the right door
+# TrainMate — find the right door
 
-Citymapper tells you *which train*. PlatformPal tells you *which door*: by voice, text or photo,
+Citymapper tells you *which train*. TrainMate tells you *which door*: by voice, text or photo,
 for people who need it most (prams, wheelchairs, luggage, low vision, rush hour).
 
 Track 2 — Multimodal & Human-Centric AI.
@@ -36,7 +36,7 @@ end cars, and per-train randomness. Station landmark positions in `src/data/netw
 ## 3-minute demo script
 
 1. Press **🎤 Speak**: "I'm at Liverpool Street going to Bond Street with a pram."
-2. PlatformPal answers out loud and the 3D view highlights the spot; the car bars show the crowding.
+2. TrainMate answers out loud and the 3D view highlights the spot; the car bars show the crowding.
 3. **📷 Upload photo** of the platform → "You're by the roundel, walk 20 metres towards the front…" and the view drops to eye level.
 4. Turn on **High contrast**, ask as a blind user ("I'm blind, at Bond Street, heading to Liverpool Street") → directions with step counts.
 5. Drag **Simulated time** to 08:30 vs 14:00 to show crowding changing; press **Next train ⏭** to watch a train arrive.
