@@ -605,12 +605,14 @@ function walkEntry() {
   // 15-30 m away on the side of the nearest entrance.
   const all = o.layout.landmarks.filter((l) => types.includes(l.type));
   const t = state.rec!.targetX;
-  const near = all.filter((l) => Math.abs(l.xM - t) <= 40);
+  const near = all.filter((l) => Math.abs(l.xM - t) >= 25 && Math.abs(l.xM - t) <= 45);
   const pick = near[Math.floor(Math.random() * near.length)];
   if (pick) return { x: pick.xM, name: pick.name };
   const closest = [...all].sort((a, b) => Math.abs(a.xM - t) - Math.abs(b.xM - t))[0];
   const side = closest ? Math.sign(closest.xM - t) || 1 : 1;
-  const x = Math.min(o.layout.lengthM - 3, Math.max(3, t + side * (15 + Math.random() * 15)));
+  let x = t + side * (28 + Math.random() * 12);
+  if (x < 3 || x > o.layout.lengthM - 3) x = t - side * (28 + Math.random() * 12);
+  x = Math.min(o.layout.lengthM - 3, Math.max(3, x));
   const lm = o.layout.landmarks.filter((l) => l.type !== 'platform-end').sort((a, b) => Math.abs(a.xM - x) - Math.abs(b.xM - x))[0];
   return { x, name: lm ? `platform by the ${lm.name}` : 'platform' };
 }
@@ -640,11 +642,6 @@ function startWalkDemo() {
   Object.assign(walk, { arrived: false, doorsAnnounced: false, lastTurn: '', lastCue: 0, held: 0 });
   const entry = walkEntry();
   // The recommendation takes where you start into account (a closer good car beats a far one).
-  if (!['photo', 'landmark', 'simulated'].includes(state.userSource ?? '')) {
-    state.userX = entry.x;
-    state.userSource = 'entrance';
-  }
-  replan(false);
   scene.startWalk(entry.x);
   miniYouCar = carNear(entry.x);
   renderMini();
@@ -655,12 +652,14 @@ function startWalkDemo() {
 function speakCue(text: string, important = false) {
   if (!$<HTMLInputElement>('autoSpeak').checked) return;
   const now = Date.now();
-  if (!important && now - walk.lastCue < 2500) return;
+  if (!important && (now - walk.lastCue < 4000 || speechSynthesis.speaking)) return;
   walk.lastCue = now;
-  if (important && hasGeminiKey()) return say(text);
-  speechSynthesis.cancel();
+  stopSpeaking();
   const u = new SpeechSynthesisUtterance(text);
   u.lang = 'en-GB';
+  u.rate = 1;
+  const voice = speechSynthesis.getVoices().find((v) => v.lang === 'en-GB' && /natural|online|google/i.test(v.name)) ?? speechSynthesis.getVoices().find((v) => v.lang === 'en-GB');
+  if (voice) u.voice = voice;
   speechSynthesis.speak(u);
 }
 
