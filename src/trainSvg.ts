@@ -14,18 +14,22 @@ interface Livery {
   swoosh?: string;
   skirt?: string;
   cab: string;
+  accent: string;
+  pinstripe?: string;
 }
 
 const LIVERIES: Record<string, Livery> = {
   elizabeth: {
-    body: '#f3f4f6',
-    roof: '#c9ccd2',
-    windows: '#151a24',
-    door: '#d9dbde',
-    doorWindow: '#10161d',
-    lower: ['#5b68b4', '#323f86'],
-    swoosh: '#8f6ccb',
-    cab: '#0c0f13',
+    body: '#e7e8ea',
+    roof: '#b9bdc3',
+    windows: '#111923',
+    door: '#6b4c9a',
+    doorWindow: '#111923',
+    lower: ['#6d55a3', '#40306f'],
+    swoosh: '#9b7bc1',
+    cab: '#080c12',
+    accent: '#6950a1',
+    pinstripe: '#e86a2a',
   },
   metropolitan: {
     body: '#f4f4f2',
@@ -35,6 +39,7 @@ const LIVERIES: Record<string, Livery> = {
     doorWindow: '#2a0c0d',
     skirt: '#1c3f94',
     cab: '#c81e24',
+    accent: '#d4252b',
   },
 };
 
@@ -70,6 +75,7 @@ export function trainSvg(o: MiniOptions) {
 
   // Rail.
   parts.push(`<rect x="10" y="${BOT + 9}" width="${W - 20}" height="3" rx="1.5" fill="#3a3f48"/>`);
+  parts.push(`<rect x="10" y="${BOT + 13}" width="${W - 20}" height="2" fill="#17191e"/>`);
 
   for (const { car, load, seats, freeSeats, noiseDb } of loads) {
     const len = train.carLengthsM[car - 1] * scale;
@@ -82,6 +88,13 @@ export function trainSvg(o: MiniOptions) {
     const isFront = car === 1;
     const fill = o.color(load);
     const best = car === o.best;
+
+    // Flexible gangway and inter-car shadow. The real formations are fully walk-through.
+    if (car > 1) {
+      const joint = east ? x1 + 2 : x0 - 2;
+      parts.push(`<rect x="${joint - 3}" y="${TOP + 7}" width="6" height="${BOT - TOP - 8}" rx="2" fill="#17191e"/>`);
+      parts.push(`<path d="M ${joint - 2} ${TOP + 10} v ${BOT - TOP - 15} M ${joint + 1} ${TOP + 10} v ${BOT - TOP - 15}" stroke="#4b4f57" stroke-width="1"/>`);
+    }
 
     // Body outline, with a sloped cab at either end of the train.
     const r = 7;
@@ -102,6 +115,7 @@ export function trainSvg(o: MiniOptions) {
     // Lower band (Elizabeth) or skirt (S8).
     if (lv.lower) g.push(`<rect x="${x0}" y="${BOT - 30}" width="${len}" height="30" fill="url(#lower)"/>`);
     if (lv.skirt) g.push(`<rect x="${x0}" y="${BOT - 8}" width="${len}" height="8" fill="${lv.skirt}"/>`);
+    if (lv.pinstripe) g.push(`<rect x="${x0}" y="${BOT - 32}" width="${len}" height="2.2" fill="${lv.pinstripe}"/>`);
     // Purple swoosh at the No.2 (rear) end of each car.
     if (lv.swoosh && car < train.cars) {
       const rearX = east ? x0 : x1;
@@ -115,6 +129,12 @@ export function trainSvg(o: MiniOptions) {
     const wx1 = x1 - (noseRight ? 22 : 4);
     g.push(`<rect x="${wx0}" y="${wy}" width="${wx1 - wx0}" height="${wh}" rx="3" fill="${lv.windows}"/>`);
     g.push(`<rect x="${wx0}" y="${wy}" width="${wx1 - wx0}" height="${wh}" rx="3" fill="${fill}" opacity="0.42"/>`);
+    // Window pillars break up the continuous dark glazing into the real side-window rhythm.
+    const bays = line.id === 'elizabeth' ? 9 : 8;
+    for (let i = 1; i < bays; i++) {
+      const px = wx0 + (i / bays) * (wx1 - wx0);
+      g.push(`<rect x="${px - 1.25}" y="${wy}" width="2.5" height="${wh}" fill="${lv.body}"/>`);
+    }
     const people = Math.round(load * 12);
     for (let i = 0; i < people; i++) {
       const px = wx0 + ((i + 0.5) / people) * (wx1 - wx0) + (((i * 37) % 7) - 3);
@@ -129,23 +149,42 @@ export function trainSvg(o: MiniOptions) {
       g.push(`<rect x="${cx - dw / 2}" y="${TOP + 7}" width="${dw}" height="${BOT - TOP - 9}" rx="1.5" fill="${lv.door}" stroke="#00000033" stroke-width="0.6"/>`);
       g.push(`<rect x="${cx - dw / 2 + 1.2}" y="${TOP + 11}" width="${dw / 2 - 1.8}" height="18" rx="1" fill="${lv.doorWindow}"/>`);
       g.push(`<rect x="${cx + 0.6}" y="${TOP + 11}" width="${dw / 2 - 1.8}" height="18" rx="1" fill="${lv.doorWindow}"/>`);
+      g.push(`<path d="M ${cx} ${TOP + 8} V ${BOT - 3}" stroke="#ffffff55" stroke-width="0.8"/>`);
     }
+    // TfL roundel and small fleet markings between door bays.
+    const logoX = (wx0 + wx1) / 2;
+    const logoY = BOT - 18;
+    g.push(`<circle cx="${logoX}" cy="${logoY}" r="5.2" fill="none" stroke="${line.id === 'metropolitan' ? '#d71920' : '#ffffff'}" stroke-width="2.2"/>`);
+    g.push(`<rect x="${logoX - 7}" y="${logoY - 1.7}" width="14" height="3.4" fill="${line.id === 'metropolitan' ? '#17469e' : '#ffffff'}"/>`);
+    g.push(`<text x="${logoX + 10}" y="${logoY + 2}" font-size="4.8" font-family="Segoe UI, sans-serif" fill="${line.id === 'metropolitan' ? '#25282d' : '#ffffff'}">${line.id === 'metropolitan' ? 'UNDERGROUND' : 'ELIZABETH LINE'}</text>`);
     // Cab windscreen and lights.
     for (const [nose, right] of [[noseRight, true], [noseLeft, false]] as const) {
       if (!nose) continue;
       const ex = right ? x1 : x0;
       const s = right ? -1 : 1;
       g.push(`<path d="M ${ex + s * 18} ${TOP + 1} Q ${ex + s * 3} ${TOP + 3} ${ex + s * 0.5} ${TOP + 24} L ${ex + s * 0.5} ${TOP + 34} L ${ex + s * 16} ${TOP + 34} Z" fill="${lv.cab}"/>`);
+      g.push(`<rect x="${ex + s * 15 - (right ? 10 : 0)}" y="${TOP + 7}" width="10" height="4" rx="1" fill="#f6c945"/>`);
       // Headlights on the leading cab, tail lights on the rear one.
       g.push(`<circle cx="${ex + s * 4}" cy="${BOT - 16}" r="2.4" fill="${isFront ? '#fff8d6' : '#ff3b30'}"/>`);
     }
     parts.push(`<g clip-path="url(#c${car})">${g.join('')}</g>`);
     if (best) parts.push(`<path d="${body}" fill="none" stroke="#4ade80" stroke-width="2.5"/>`);
 
-    // Bogies.
+    // Underframe equipment and bogies.
+    const equipmentY = BOT + 1;
+    parts.push(`<rect x="${x0 + len * 0.31}" y="${equipmentY}" width="${len * 0.13}" height="6" rx="1" fill="#343840"/>`);
+    parts.push(`<rect x="${x0 + len * 0.48}" y="${equipmentY}" width="${len * 0.12}" height="7" rx="1" fill="#24272d"/>`);
+    parts.push(`<path d="M ${x0 + len * 0.32} ${equipmentY + 2} h ${len * 0.1}" stroke="#6b7079" stroke-width="1"/>`);
     for (const bx of [x0 + len * 0.14, x1 - len * 0.14]) {
-      parts.push(`<rect x="${bx - 11}" y="${BOT + 1}" width="22" height="5" rx="2" fill="#2a2d33"/>`);
-      parts.push(`<circle cx="${bx - 6}" cy="${BOT + 7}" r="3.6" fill="#1b1d22"/><circle cx="${bx + 6}" cy="${BOT + 7}" r="3.6" fill="#1b1d22"/>`);
+      parts.push(`<path d="M ${bx - 12} ${BOT + 2} h 24 l -3 6 h -18 z" fill="#25282e"/>`);
+      parts.push(`<circle cx="${bx - 6}" cy="${BOT + 8}" r="4.2" fill="#111318" stroke="#555b64" stroke-width="1"/><circle cx="${bx + 6}" cy="${BOT + 8}" r="4.2" fill="#111318" stroke="#555b64" stroke-width="1"/>`);
+      parts.push(`<circle cx="${bx - 6}" cy="${BOT + 8}" r="1.5" fill="#858b94"/><circle cx="${bx + 6}" cy="${BOT + 8}" r="1.5" fill="#858b94"/>`);
+    }
+
+    // Roof equipment: compact boxes and pantographs on the known Class 345 motor cars.
+    if (train.pantographCars.includes(car)) {
+      parts.push(`<rect x="${(x0 + x1) / 2 - 9}" y="${TOP - 4}" width="18" height="4" rx="1" fill="#555b63"/>`);
+      parts.push(`<path d="M ${(x0 + x1) / 2 - 7} ${TOP - 4} l 7 -10 l 7 10 M ${(x0 + x1) / 2 - 5} ${TOP - 14} h 10" fill="none" stroke="#777e87" stroke-width="1.6"/>`);
     }
 
     // Passenger-facing comfort estimates for each train area.
