@@ -89,6 +89,7 @@ export class PlatformScene {
   private clock = new THREE.Clock();
   private host: HTMLElement;
   private peopleTemplates: PersonTemplate[] = [];
+  private familyTemplate?: THREE.Object3D;
   private lodAt = 0;
   private userShown = false;
   // First-person walking on the platform. yaw 0 = facing the track (+z).
@@ -138,7 +139,13 @@ export class PlatformScene {
         this.platformPeople?.setTemplates(t, NEAR_PEOPLE);
         this.trainPeople?.setTemplates(t, NEAR_PEOPLE);
       })
-      .catch((err) => console.info('Scanned people not available, using simple figures', err));
+      .catch((err) => console.info('Scanned people not available; synthetic fallback is disabled', err));
+    loadGltf('/models/people-family.glb')
+      .then((gltf) => {
+        this.familyTemplate = gltf.scene;
+        this.addFamilies();
+      })
+      .catch((err) => console.info('CC0 family model not available', err));
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -208,12 +215,40 @@ export class PlatformScene {
     arrow.position.set(0, 0.02, -1);
     s.add(arrow);
 
-    this.platformPeople = new Crowd(MAX_PLATFORM_PEOPLE, undefined, true);
+    this.platformPeople = new Crowd(MAX_PLATFORM_PEOPLE, undefined, true, true);
     if (this.peopleTemplates.length) this.platformPeople.setTemplates(this.peopleTemplates, NEAR_PEOPLE);
     s.add(this.platformPeople.group);
+    this.addFamilies();
 
     this.buildTrain(line);
     this.intro();
+  }
+
+  private addFamilies() {
+    if (!this.familyTemplate || !this.layout) return;
+    const old = this.station.getObjectByName('real-families');
+    if (old) this.station.remove(old);
+    const families = new THREE.Group();
+    families.name = 'real-families';
+    const positions = [0.2, 0.52, 0.82];
+    for (const [i, ratio] of positions.entries()) {
+      const model = this.familyTemplate.clone(true);
+      const bounds = new THREE.Box3().setFromObject(model);
+      const centre = bounds.getCenter(new THREE.Vector3());
+      model.position.set(-centre.x, -bounds.min.y, -centre.z);
+      model.traverse((o) => {
+        if (o instanceof THREE.Mesh) {
+          o.castShadow = false;
+          o.receiveShadow = true;
+        }
+      });
+      const wrapper = new THREE.Group();
+      wrapper.add(model);
+      wrapper.position.set(this.wx(this.layout.lengthM * ratio), 0, -1.8 - (i % 2) * 1.1);
+      wrapper.rotation.y = i % 2 ? Math.PI : 0;
+      families.add(wrapper);
+    }
+    this.station.add(families);
   }
 
   private buildTunnel(L: number, wallColor: string) {
@@ -526,7 +561,7 @@ export class PlatformScene {
       this.train.add(car);
       cars.push(car);
     }
-    this.trainPeople = new Crowd(train.cars * PEOPLE_PER_FULL_CAR);
+    this.trainPeople = new Crowd(train.cars * PEOPLE_PER_FULL_CAR, undefined, false, true);
     if (this.peopleTemplates.length) this.trainPeople.setTemplates(this.peopleTemplates, NEAR_PEOPLE);
     this.trainPeople.group.position.z = TRACK_Z;
     this.train.add(this.trainPeople.group);
@@ -659,7 +694,7 @@ export class PlatformScene {
       this.train.add(car);
     }
 
-    this.trainPeople = new Crowd(train.cars * PEOPLE_PER_FULL_CAR);
+    this.trainPeople = new Crowd(train.cars * PEOPLE_PER_FULL_CAR, undefined, false, true);
     if (this.peopleTemplates.length) this.trainPeople.setTemplates(this.peopleTemplates, NEAR_PEOPLE);
     this.trainPeople.group.position.z = TRACK_Z;
     this.train.add(this.trainPeople.group);
@@ -827,7 +862,7 @@ export class PlatformScene {
       if (!old) return;
       const best = car === highlightCar;
       const tag = pill(
-        `${best ? '★ ' : ''}Car ${car} · ${Math.round(load * 100)}%`,
+        best ? '★ WAIT HERE' : `${freeSeats}/${seats} FREE · ${noiseDb} dB`,
         '#ffffff',
         best ? '#15803d' : `#${loadColor(load).multiplyScalar(0.5).getHexString()}`,
         best ? 0.9 : 0.7,
@@ -935,14 +970,12 @@ export class PlatformScene {
     this.target.add(ring, disc, beam, tag, light);
     this.target.visible = false;
 
-    const you = new Crowd(1, '#3b82f6');
-    you.place([{ pos: new THREE.Vector3(0, 0, EDGE_Z - 3), rotY: 0 }], () => 0.5);
     const youRing = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.7, 40), new THREE.MeshBasicMaterial({ color: '#3b82f6', side: THREE.DoubleSide }));
     youRing.rotation.x = -Math.PI / 2;
     youRing.position.set(0, 0.03, EDGE_Z - 3);
     const youTag = pill('YOU', '#ffffff', '#1d4ed8', 1);
     youTag.position.set(0, 3, EDGE_Z - 3);
-    this.user.add(you.group, youRing, youTag);
+    this.user.add(youRing, youTag);
     this.user.visible = false;
   }
 
@@ -1249,7 +1282,7 @@ export class PlatformScene {
     }
     this.platformPeople?.animate(t);
     // Floating car labels are for the overview; on foot the platform displays do that job.
-    for (const tag of this.carLabels) tag.visible = !this.walk.active;
+    for (const tag of this.carLabels) tag.visible = false;
     // Close up, the light column and label would only get in the way.
     const near = this.camera.position.distanceTo(this.target.position) < 14;
     for (const i of [2, 3, 4]) this.target.children[i].visible = !near;
@@ -1292,6 +1325,7 @@ class Crowd {
   private max: number;
   private tint?: string;
   private moving: boolean;
+  private realOnly: boolean;
   // Per person: placement (no scale) and pose, for swapping in scanned people.
   private persons: {
     m: THREE.Matrix4;
@@ -1303,10 +1337,11 @@ class Crowd {
   private saved = new Map<Part, Float32Array>();
   private scanned: { t: PersonTemplate; mesh: THREE.InstancedMesh }[] = [];
 
-  constructor(max: number, tint?: string, moving = false) {
+  constructor(max: number, tint?: string, moving = false, realOnly = false) {
     this.max = max;
     this.tint = tint;
     this.moving = moving;
+    this.realOnly = realOnly;
     const cap = (r: number, len: number) => new THREE.CapsuleGeometry(r, len, 4, 10);
     const torso = new THREE.CylinderGeometry(0.19, 0.16, 0.56, 14);
     torso.scale(1, 1, 0.62);
@@ -1350,6 +1385,8 @@ class Crowd {
 
   // Scanned people to use for the nearest `capacity` people in this crowd.
   setTemplates(templates: PersonTemplate[], capacity: number) {
+    this.group.visible = true;
+    if (this.realOnly) capacity = this.max;
     for (const { mesh } of this.scanned) this.group.remove(mesh);
     this.scanned = templates.map((t) => {
       const mesh = new THREE.InstancedMesh(t.geometry, t.material, capacity);
@@ -1358,13 +1395,11 @@ class Crowd {
       this.group.add(mesh);
       return { t, mesh };
     });
+    if (this.realOnly) for (const mesh of this.parts.values()) mesh.visible = false;
   }
 
   // Show scanned people for the k people closest to the camera, simple figures elsewhere.
   updateLod(camera: THREE.Vector3, k: number) {
-    // Animated platform figures use the articulated instanced model; scanned static
-    // meshes cannot share the same per-frame walking transform without skinning them.
-    if (this.moving) return;
     if (!this.scanned.length || !this.persons.length) return;
     this.group.updateWorldMatrix(true, false);
     const world = this.group.matrixWorld;
@@ -1372,8 +1407,8 @@ class Crowd {
     const near = this.persons
       .map((p, i) => ({ i, d: v.setFromMatrixPosition(p.m).applyMatrix4(world).distanceToSquared(camera) }))
       .sort((a, b) => a.d - b.d)
-      .slice(0, k)
-      .filter((x) => x.d < 45 * 45);
+      .slice(0, this.realOnly ? this.persons.length : k)
+      .filter((x) => this.realOnly || x.d < 45 * 45);
     for (const part of BODY_PARTS) {
       const mesh = this.parts.get(part)!;
       const saved = this.saved.get(part);
@@ -1551,6 +1586,7 @@ class Crowd {
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     }
+    if (this.realOnly && !this.scanned.length) this.group.visible = false;
   }
 }
 
@@ -1715,7 +1751,7 @@ class CarDisplay {
     ctx.font = '700 34px "Segoe UI", system-ui, sans-serif';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = best ? '#4ade80' : '#e5e7eb';
-    ctx.fillText(`${best ? '★ ' : ''}CAR ${car}${this.suffix}`, 16, h / 2 + 1);
+    ctx.fillText(best ? '★ WAIT HERE' : `TRAIN INFO${this.suffix}`, 16, h / 2 + 1);
     // Ten-segment load meter.
     const segs = 10;
     const x0 = 230;

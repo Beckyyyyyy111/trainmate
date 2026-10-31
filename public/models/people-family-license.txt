@@ -1,0 +1,10 @@
+Sam, Mina, Eli and Riley - 3D Person, Family of four
+
+Source: Innerscene 3D Parts Library
+https://www.innerscene.com/tools/library/3d-parts/sam-mina-eli-and-riley-3d-person-family-of-four-7d1199a8
+
+Built by Innerscene from MakeHuman/MPFB body and skin assets.
+License: CC0 1.0 Universal (public domain)
+https://creativecommons.org/publicdomain/zero/1.0/
+
+The model may be used, modified and redistributed for any purpose.
