@@ -89,7 +89,7 @@ export class PlatformScene {
   private clock = new THREE.Clock();
   private host: HTMLElement;
   private peopleTemplates: PersonTemplate[] = [];
-  private familyTemplate?: THREE.Object3D;
+  private peopleGroupTemplates: THREE.Object3D[] = [];
   private lodAt = 0;
   private userShown = false;
   // First-person walking on the platform. yaw 0 = facing the track (+z).
@@ -140,12 +140,16 @@ export class PlatformScene {
         this.trainPeople?.setTemplates(t, NEAR_PEOPLE);
       })
       .catch((err) => console.info('Scanned people not available; synthetic fallback is disabled', err));
-    loadGltf('/models/people-family.glb')
-      .then((gltf) => {
-        this.familyTemplate = gltf.scene;
-        this.addFamilies();
+    Promise.all([
+      loadGltf('/models/people-family.glb'),
+      loadGltf('/models/people-colleagues.glb'),
+      loadGltf('/models/people-queue.glb'),
+    ])
+      .then((models) => {
+        this.peopleGroupTemplates = models.map((gltf) => gltf.scene);
+        this.addPeopleGroups();
       })
-      .catch((err) => console.info('CC0 family model not available', err));
+      .catch((err) => console.info('CC0 people groups not available', err));
 
     const pmrem = new THREE.PMREMGenerator(this.renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
@@ -218,21 +222,22 @@ export class PlatformScene {
     this.platformPeople = new Crowd(MAX_PLATFORM_PEOPLE, undefined, true, true);
     if (this.peopleTemplates.length) this.platformPeople.setTemplates(this.peopleTemplates, NEAR_PEOPLE);
     s.add(this.platformPeople.group);
-    this.addFamilies();
+    this.addPeopleGroups();
 
     this.buildTrain(line);
     this.intro();
   }
 
-  private addFamilies() {
-    if (!this.familyTemplate || !this.layout) return;
+  private addPeopleGroups() {
+    if (!this.peopleGroupTemplates.length || !this.layout) return;
     const old = this.station.getObjectByName('real-families');
     if (old) this.station.remove(old);
     const families = new THREE.Group();
     families.name = 'real-families';
     const positions = [0.2, 0.52, 0.82];
-    for (const [i, ratio] of positions.entries()) {
-      const model = this.familyTemplate.clone(true);
+    for (const [i, modelTemplate] of this.peopleGroupTemplates.entries()) {
+      const ratio = positions[i] ?? (i + 1) / (this.peopleGroupTemplates.length + 1);
+      const model = modelTemplate.clone(true);
       const bounds = new THREE.Box3().setFromObject(model);
       const centre = bounds.getCenter(new THREE.Vector3());
       model.position.set(-centre.x, -bounds.min.y, -centre.z);
@@ -1419,7 +1424,10 @@ class Crowd {
       const p = this.persons[i];
       const options = this.scanned.map((s, j) => ({ s, j })).filter(({ s }) => s.t.pose === (p.sit ? 'sit' : 'stand'));
       if (!options.length) continue;
-      const { s, j } = options[p.pick % options.length];
+      const ordered = options.slice(p.pick % options.length).concat(options.slice(0, p.pick % options.length));
+      const selected = this.realOnly ? ordered.find(({ j }) => counts[j] === 0) : ordered[0];
+      if (!selected) continue;
+      const { s, j } = selected;
       if (counts[j] >= s.mesh.instanceMatrix.count) continue;
       s.mesh.setMatrixAt(counts[j]++, p.m);
       for (const part of BODY_PARTS) (this.parts.get(part)!.instanceMatrix.array as Float32Array).fill(0, i * 16, i * 16 + 16);

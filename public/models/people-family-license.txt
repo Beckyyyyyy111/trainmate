@@ -8,3 +8,11 @@ License: CC0 1.0 Universal (public domain)
 https://creativecommons.org/publicdomain/zero/1.0/
 
 The model may be used, modified and redistributed for any purpose.
+
+Additional CC0 people groups from the same library and source:
+
+Micah, Taylor and Quinn - Three colleagues talking
+https://www.innerscene.com/tools/library/3d-parts/micah-taylor-and-quinn-3d-person-three-colleagues-talking-4bdae510
+
+Avery, Morgan, Rowan and Sage - Queue of four
+https://www.innerscene.com/tools/library/3d-parts/avery-morgan-rowan-and-sage-3d-person-queue-of-four-63b932d5
