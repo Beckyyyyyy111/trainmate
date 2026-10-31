@@ -208,7 +208,7 @@ export class PlatformScene {
     arrow.position.set(0, 0.02, -1);
     s.add(arrow);
 
-    this.platformPeople = new Crowd(MAX_PLATFORM_PEOPLE);
+    this.platformPeople = new Crowd(MAX_PLATFORM_PEOPLE, undefined, true);
     if (this.peopleTemplates.length) this.platformPeople.setTemplates(this.peopleTemplates, NEAR_PEOPLE);
     s.add(this.platformPeople.group);
 
@@ -1247,6 +1247,7 @@ export class PlatformScene {
       this.platformPeople?.updateLod(this.camera.position, NEAR_PEOPLE);
       if (this.train.visible) this.trainPeople?.updateLod(this.camera.position, NEAR_PEOPLE);
     }
+    this.platformPeople?.animate(t);
     // Floating car labels are for the overview; on foot the platform displays do that job.
     for (const tag of this.carLabels) tag.visible = !this.walk.active;
     // Close up, the light column and label would only get in the way.
@@ -1290,14 +1291,22 @@ class Crowd {
   private parts = new Map<Part, THREE.InstancedMesh>();
   private max: number;
   private tint?: string;
+  private moving: boolean;
   // Per person: placement (no scale) and pose, for swapping in scanned people.
-  private persons: { m: THREE.Matrix4; sit: boolean; pick: number }[] = [];
+  private persons: {
+    m: THREE.Matrix4;
+    base: THREE.Matrix4;
+    sit: boolean;
+    pick: number;
+    motion?: { minX: number; maxX: number; speed: number; phase: number; dir: 1 | -1; baseX: number };
+  }[] = [];
   private saved = new Map<Part, Float32Array>();
   private scanned: { t: PersonTemplate; mesh: THREE.InstancedMesh }[] = [];
 
-  constructor(max: number, tint?: string) {
+  constructor(max: number, tint?: string, moving = false) {
     this.max = max;
     this.tint = tint;
+    this.moving = moving;
     const cap = (r: number, len: number) => new THREE.CapsuleGeometry(r, len, 4, 10);
     const torso = new THREE.CylinderGeometry(0.19, 0.16, 0.56, 14);
     torso.scale(1, 1, 0.62);
@@ -1353,6 +1362,9 @@ class Crowd {
 
   // Show scanned people for the k people closest to the camera, simple figures elsewhere.
   updateLod(camera: THREE.Vector3, k: number) {
+    // Animated platform figures use the articulated instanced model; scanned static
+    // meshes cannot share the same per-frame walking transform without skinning them.
+    if (this.moving) return;
     if (!this.scanned.length || !this.persons.length) return;
     this.group.updateWorldMatrix(true, false);
     const world = this.group.matrixWorld;
@@ -1384,6 +1396,36 @@ class Crowd {
     for (const part of BODY_PARTS) this.parts.get(part)!.instanceMatrix.needsUpdate = true;
   }
 
+  // Move a subset of the platform crowd along the platform. Each passenger has a
+  // different speed and travel corridor; wrapping at the ends keeps the flow continuous.
+  animate(t: number) {
+    if (!this.moving || !this.persons.length) return;
+    const base = new THREE.Matrix4();
+    const shift = new THREE.Matrix4();
+    const out = new THREE.Matrix4();
+    for (let i = 0; i < this.persons.length; i++) {
+      const p = this.persons[i];
+      if (!p.motion) continue;
+      const m = p.motion;
+      const span = Math.max(1, m.maxX - m.minX);
+      const travel = (t * m.speed + m.phase) % span;
+      const x = m.dir > 0 ? m.minX + travel : m.maxX - travel;
+      const bob = Math.sin(t * m.speed * 8 + m.phase) * 0.012;
+      shift.makeTranslation(x - m.baseX, bob, 0);
+      p.m.copy(out.multiplyMatrices(shift, p.base));
+      for (const [part, mesh] of this.parts) {
+        if (part === 'wheels') continue;
+        const saved = this.saved.get(part);
+        if (!saved) continue;
+        base.fromArray(saved, i * 16);
+        mesh.setMatrixAt(i, out.multiplyMatrices(shift, base));
+      }
+    }
+    for (const [part, mesh] of this.parts) {
+      if (part !== 'wheels') mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
   place(spots: PersonSpot[], rand: () => number) {
     const n = Math.min(spots.length, this.max);
     this.persons = [];
@@ -1398,6 +1440,8 @@ class Crowd {
     const zero = new THREE.Matrix4().makeScale(0, 0, 0);
     const c = new THREE.Color();
     let wheelIdx = 0;
+    const minCrowdX = spots.length ? Math.min(...spots.map((p) => p.pos.x)) : 0;
+    const maxCrowdX = spots.length ? Math.max(...spots.map((p) => p.pos.x)) : 0;
 
     const set = (part: Part, i: number, x: number, y: number, z: number, color: string, rx = 0, rz = 0, s = 1) => {
       e.set(rx, 0, rz);
@@ -1411,12 +1455,25 @@ class Crowd {
 
     for (let i = 0; i < n; i++) {
       const p = spots[i];
+      const walks = this.moving && !p.sit && p.accessory !== 'pram' && rand() < 0.58;
+      const dir: 1 | -1 = rand() < 0.5 ? 1 : -1;
+      const rotY = walks ? (dir > 0 ? Math.PI / 2 : -Math.PI / 2) : p.rotY;
       const female = rand() < 0.5;
       const height = (female ? 1.6 : 1.72) + (rand() - 0.5) * 0.18;
       const s = height / 1.75;
       const build = 0.9 + rand() * 0.25;
-      person.compose(p.pos, q.setFromEuler(e.set(0, p.rotY, 0)), sc.set(s * build, s, s * build));
-      this.persons.push({ m: new THREE.Matrix4().compose(p.pos, q, new THREE.Vector3(s, s, s)), sit: !!p.sit, pick: Math.floor(rand() * 1e6) });
+      person.compose(p.pos, q.setFromEuler(e.set(0, rotY, 0)), sc.set(s * build, s, s * build));
+      const scanMatrix = new THREE.Matrix4().compose(p.pos, q, new THREE.Vector3(s, s, s));
+      const corridor = 10 + rand() * 32;
+      const minX = Math.max(minCrowdX, p.pos.x - corridor);
+      const maxX = Math.min(maxCrowdX, p.pos.x + corridor);
+      this.persons.push({
+        m: scanMatrix.clone(),
+        base: scanMatrix.clone(),
+        sit: !!p.sit,
+        pick: Math.floor(rand() * 1e6),
+        motion: walks && maxX - minX > 3 ? { minX, maxX, speed: 0.45 + rand() * 0.65, phase: rand() * (maxX - minX), dir, baseX: p.pos.x } : undefined,
+      });
 
       const skin = pick(SKIN);
       const top = this.tint ?? pick(TOPS);
@@ -1485,7 +1542,9 @@ class Crowd {
         hide('pramHood', i);
       }
     }
-    for (const part of BODY_PARTS) this.saved.set(part, (this.parts.get(part)!.instanceMatrix.array as Float32Array).slice());
+    for (const [part, mesh] of this.parts) {
+      if (part !== 'wheels') this.saved.set(part, (mesh.instanceMatrix.array as Float32Array).slice());
+    }
     for (const { mesh } of this.scanned) mesh.count = 0;
     for (const [name, mesh] of this.parts) {
       mesh.count = name === 'wheels' ? wheelIdx : n;
