@@ -1,9 +1,60 @@
-# TrainMate — find the right door
+# TrainMate: find the right door before the train arrives
 
-Citymapper tells you *which train*. TrainMate tells you *which door*: by voice, text or photo,
-for people who need it most (prams, wheelchairs, luggage, low vision, rush hour).
+![TrainMate overview](docs/screenshots/1-overview.png)
 
-Track 2 — Multimodal & Human-Centric AI.
+## Why we built this
+
+You're on the platform, the board says two minutes, and you have to pick a spot. You don't know
+which carriage will have space. So you guess. The doors open in front of a packed carriage, and
+three carriages down there are empty seats you'll never reach in time.
+
+For most of us that's just annoying. For a lot of people it decides how the whole journey goes:
+
+- **If you're pregnant**, standing for twenty minutes in a swaying, packed carriage is the last thing
+  you need, and you can't always count on someone noticing and giving up a seat.
+- **If you're pushing a buggy or holding a child's hand**, you need a carriage with floor space by
+  the door, not one where you'll be wedged in with a pram nobody can get past.
+- **If you're older, or walking with a stick**, you need a seat, and you need to get to the right
+  door without rushing the length of the platform.
+- **If you use a wheelchair**, only certain carriages have the space. On the Elizabeth line it's the
+  middle carriage. If you're waiting at the wrong end, you may not make it.
+- **If loud, crowded spaces are hard for you**, a calmer carriage can make the difference between
+  a manageable journey and an overwhelming one.
+
+And then there's rush hour. At 8:30 the train pulls in full, you can't squeeze on, and you watch it
+leave. The next one is just as full. Now you're late for work, and nothing you did caused it. Often
+there *was* room on that first train, just not where you were standing.
+
+London platforms don't mark carriage numbers, so "stand by car 5" means nothing when you're there.
+TrainMate tells you where to stand in terms of what you can actually see (an exit sign, a bench, a
+lift) and walks you there, before the train arrives.
+
+## What it does
+
+- **Ask the way you'd ask a person.** Say or type *"I'm at Tottenham Court Road going to Liverpool
+  Street with a pram."* Gemini works out where you are, where you're going and what you need.
+- **It picks the carriage for you.** It weighs how crowded each carriage is likely to be, free
+  seats, noise, wheelchair and buggy spaces, and which carriage stops nearest the exit or lift at
+  your destination.
+- **Directions use landmarks, not car numbers.** *"Turn left, walk 22 metres past the roundel sign,
+  wait by the middle bench."* It speaks them out loud, with step counts for blind and partially
+  sighted passengers.
+- **Point your camera at the platform.** Gemini Vision recognises the signs, exits and benches
+  around you and works out where you're standing.
+- **See the whole train before it arrives.** A side view of the train shows each carriage: how
+  full it is, how many seats are likely free, and how loud it is inside.
+
+![Walking to the right door with turn-by-turn guidance](docs/screenshots/2-walk.png)
+
+![At the door as it opens](docs/screenshots/3-at-the-door.png)
+
+![Metropolitan line S8 Stock arriving](docs/screenshots/4-train.png)
+
+Lines in the demo: **Elizabeth line** (Class 345) and **Metropolitan line** (S8 Stock).
+Built for Track 2: Multimodal & Human-Centric AI, with the Gemini model family.
+
+> Crowding, seats and noise are modelled estimates (time of day, station layout, typical boarding
+> patterns), not live sensor data. Station landmark positions are approximate.
 
 ## Run
 
