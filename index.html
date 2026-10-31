@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PlatformPal — find the right door</title>
+  </head>
+  <body>
+    <a class="skip" href="#guidance">Skip to guidance</a>
+    <header class="top">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <div>
+          <h1>PlatformPal</h1>
+          <p>Find the right door, by voice, text or photo</p>
+        </div>
+      </div>
+      <div class="lines" role="radiogroup" aria-label="Line" id="lines"></div>
+      <div class="toggles">
+        <label class="switch"><input type="checkbox" id="autoSpeak" checked /><span></span>Speak</label>
+        <label class="switch"><input type="checkbox" id="contrast" /><span></span>High contrast</label>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="panel" aria-label="Trip controls">
+        <section class="card">
+          <h2>Your trip</h2>
+          <div class="ask">
+            <textarea id="askText" rows="2" placeholder="Say or type: “I'm at Liverpool Street going to Bond Street with a pram”"></textarea>
+            <div class="askBar">
+              <button id="micBtn" class="mic" aria-pressed="false" aria-label="Speak your request">🎤</button>
+              <span class="kbd">Ctrl + Space</span>
+              <button id="askBtn" class="primary">Ask</button>
+            </div>
+          </div>
+          <div class="examples"><span>Try</span><div id="examples"></div></div>
+        </section>
+
+        <section class="card">
+          <div class="route">
+            <label><span>From</span><select id="from"></select></label>
+            <label><span>To</span><select id="to"></select></label>
+            <button id="swapBtn" class="swap" aria-label="Swap from and to">⇅</button>
+          </div>
+          <h3>I'm travelling with</h3>
+          <div class="chips" id="needs"></div>
+        </section>
+
+        <section class="card">
+          <h2>Where am I?</h2>
+          <p class="hint">There are no car numbers on the platform, so tell me what you can see.</p>
+          <label class="nearPick"><span>What's next to you?</span><select id="nearSelect"></select></label>
+          <div class="locationActions">
+            <label class="button" for="photoInput">📷 Photo</label>
+            <input type="file" id="photoInput" accept="image/*" hidden />
+            <button id="cameraBtn">🎥 Camera</button>
+            <button id="simulateLocationBtn">◎ Simulate location</button>
+          </div>
+          <p id="locationStatus" class="locationStatus" role="status">Your position has not been located yet.</p>
+          <div id="cameraBox" class="camera" hidden>
+            <video id="video" playsinline muted></video>
+            <div class="twin">
+              <button id="captureBtn" class="primary">Capture</button>
+              <button id="closeCamBtn">Close</button>
+            </div>
+          </div>
+          <div id="photoResult" class="photo" hidden>
+            <img id="photoThumb" alt="Your platform photo" />
+            <p id="photoText"></p>
+          </div>
+        </section>
+
+        <details class="card advanced">
+          <summary>Advanced</summary>
+          <h3>Simulated time</h3>
+          <div class="timeRow">
+            <label class="switch"><input type="checkbox" id="liveTime" checked /><span></span>Now</label>
+            <input type="range" id="timeSlider" min="300" max="1410" step="15" value="510" disabled aria-label="Simulated time of day" />
+            <output id="timeOut"></output>
+          </div>
+          <h3>Rebuild platform from photos</h3>
+          <p class="hint">Take 4–8 photos walking the platform west → east; Gemini maps the landmarks and rebuilds the 3D scene.</p>
+          <label class="button" for="rebuildInput">🧱 Choose photos</label>
+          <input type="file" id="rebuildInput" accept="image/*" multiple hidden />
+        </details>
+      </aside>
+
+      <section class="stage" aria-label="3D platform view">
+        <div id="scene" class="scene" tabindex="0" aria-label="3D platform. In walk mode use the arrow keys to move."></div>
+        <div class="hud">
+          <span class="lineDot" aria-hidden="true"></span>
+          <span id="stationPill" class="station"></span>
+          <span class="sep" aria-hidden="true"></span>
+          <span id="trainPill" aria-live="polite"></span>
+          <span class="sep" aria-hidden="true"></span>
+          <span id="demandPill" class="muted"></span>
+          <span class="sep" aria-hidden="true"></span>
+          <span id="comfortPill" class="comfortPill"></span>
+        </div>
+        <div id="credit" class="credit"></div>
+        <div id="walkHint" class="walkHint" role="status" aria-live="polite" hidden></div>
+        <div id="doneCard" class="doneCard" role="alertdialog" aria-labelledby="doneTitle" hidden>
+          <div class="doneIcon" aria-hidden="true">🎉</div>
+          <h2 id="doneTitle"></h2>
+          <p id="doneText"></p>
+        </div>
+        <div class="bottomBar">
+          <div id="trainMini" class="trainMini" role="img" aria-label="Estimated seats and noise by train area"></div>
+          <div class="controls">
+            <div class="views" role="group" aria-label="Camera">
+              <button data-view="overview">Overview</button>
+              <button data-view="eye">Eye level</button>
+              <button data-view="train">Train</button>
+              <button data-view="walk" class="walkBtn">🚶 Walk to the train</button>
+            </div>
+            <button id="skipBtn" class="ghost">Next train ⏭</button>
+          </div>
+        </div>
+        <div id="walkPad" class="walkPad" hidden>
+          <div class="pad">
+            <span></span>
+            <button data-key="ArrowUp" aria-label="Walk forward">▲</button>
+            <span></span>
+            <button data-key="ArrowLeft" aria-label="Turn left">↶</button>
+            <button data-key="ArrowDown" aria-label="Walk back">▼</button>
+            <button data-key="ArrowRight" aria-label="Turn right">↷</button>
+          </div>
+          <p>↑ ↓ walk · ← → turn · Shift hurry</p>
+        </div>
+      </section>
+
+      <section class="guidance" id="guidance" tabindex="-1" aria-label="Guidance">
+        <div class="hero">
+          <div class="locationBadge" aria-hidden="true"><small>YOU</small><strong>◎</strong><small>located</small></div>
+          <div class="heroInfo">
+            <div class="eyebrow">Wait near</div>
+            <div id="heroSpot" class="spot">—</div>
+            <div id="heroMeta" class="meta"></div>
+          </div>
+        </div>
+        <div class="sayCard">
+          <div class="say" id="sayText" aria-live="assertive">Tell me where you are and where you're going.</div>
+          <div class="sayBar">
+            <button id="repeatBtn" class="ghost">🔊 Repeat</button>
+            <span id="status" class="status" role="status"></span>
+          </div>
+        </div>
+        <h3>Why this waiting spot</h3>
+        <ul id="reasons" class="reasons"></ul>
+        <p class="hint foot">Crowding is modelled from time of day, station layout and typical boarding patterns, not a live sensor feed.</p>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
