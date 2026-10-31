@@ -265,6 +265,8 @@ function showGuidance(text: string, reasons: string[]) {
 }
 
 function say(text: string) {
+  // While walking, every cue uses the one browser voice so nothing overlaps.
+  if (scene.walking) return speakCue(text, true);
   if (!hasGeminiKey()) {
     stopSpeaking();
     const u = new SpeechSynthesisUtterance(text);

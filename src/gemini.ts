@@ -193,8 +193,12 @@ No markdown, no lists. Never invent facts that are not given.`,
 
 let audioCtx: AudioContext | undefined;
 let currentSource: AudioBufferSourceNode | undefined;
+// Bumped whenever speech is stopped, so Gemini audio that arrives late is dropped
+// instead of playing over newer speech.
+let speechToken = 0;
 
 export function stopSpeaking() {
+  speechToken++;
   currentSource?.stop();
   currentSource = undefined;
   speechSynthesis.cancel();
@@ -202,6 +206,7 @@ export function stopSpeaking() {
 
 export async function speak(text: string, style = 'calm, warm and clear, like a friendly station assistant') {
   stopSpeaking();
+  const token = speechToken;
   try {
     const res = await ai().models.generateContent({
       model: MODELS.tts,
@@ -213,8 +218,10 @@ export async function speak(text: string, style = 'calm, warm and clear, like a 
     });
     const data = res.candidates?.[0]?.content?.parts?.find((p) => p.inlineData)?.inlineData;
     if (!data?.data) throw new Error('No audio returned');
-    await playAudio(data.data, data.mimeType ?? 'audio/L16;rate=24000');
+    if (token !== speechToken) return;
+    await playAudio(data.data, data.mimeType ?? 'audio/L16;rate=24000', token);
   } catch (err) {
+    if (token !== speechToken) return;
     console.warn('Gemini TTS failed, using browser speech', err);
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-GB';
@@ -223,7 +230,7 @@ export async function speak(text: string, style = 'calm, warm and clear, like a 
   }
 }
 
-async function playAudio(base64: string, mimeType: string) {
+async function playAudio(base64: string, mimeType: string, token: number) {
   audioCtx ??= new AudioContext();
   const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
   let buffer: AudioBuffer;
@@ -237,6 +244,8 @@ async function playAudio(base64: string, mimeType: string) {
     const ch = buffer.getChannelData(0);
     for (let i = 0; i < samples.length; i++) ch[i] = samples[i] / 32768;
   }
+  if (token !== speechToken) return;
+  currentSource?.stop();
   const src = audioCtx.createBufferSource();
   src.buffer = buffer;
   src.connect(audioCtx.destination);
